@@ -1,6 +1,20 @@
 #include "matrix_utils.h"
+#define SPEED 0.05
+#define PI 3.141592654f
 
 extern "C" {
+
+    struct Agent {
+        float x;
+        float y;
+        float a;
+    };
+
+    __global__ void update(Agent *ptr) {
+        const int i = threadIdx.x + blockIdx.x * blockDim.x;
+        ptr[i].x += cos(ptr[i].a * 2 * PI) * SPEED;
+        ptr[i].y += sin(ptr[i].a * 2 * PI) * SPEED;
+    }
 
     __global__ void filter2D(float *input, int *shape, float *filter, float *output) {
         const int x = getX();

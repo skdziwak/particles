@@ -24,14 +24,9 @@ from pathlib import Path
 # Compile CUDA Kernels
 module = SourceModule(Path('simulation.cpp').read_text(), include_dirs=[os.path.join(os.getcwd(), 'include')], no_extern_c=True)
 filter2D = module.get_function('filter2D')
+update = module.get_function('update')
 
-# Load Image
-matrix = np.array(Image.open('matrix.png'), dtype=np.float32)
-matrix = matrix[:,:,0].copy()
-matrix /= 255
-
-# Prepare buffers
-matrix2 = np.zeros_like(matrix, dtype=np.float32)
+# Bluf filter
 def create_blur(shape):
     fltr = np.zeros(shape=shape, dtype=np.float32)
     a = shape[0] // 2
@@ -40,16 +35,16 @@ def create_blur(shape):
         for y in range(shape[1]):
             fltr[x,y] = (a - x) ** 2 + (b - y) ** 2
     return np.sqrt(fltr)
-fltr = create_blur((24, 24))
-t = time.time()
-filter2D(drv.In(matrix), drv.In(np.array(fltr.shape, dtype=np.int32)), drv.In(fltr), drv.Out(matrix2), grid=GRID, block=BLOCK)
-print(time.time() - t)
 
-plt.set_cmap('magma')
-fig, axs = plt.subplots(1, 2)
-axs[0].text = 'Original'
-axs[0].imshow(matrix)
-axs[1].text = 'Blurry'
-axs[1].imshow(matrix2)
-fig.show()
-plt.show()
+agents = np.random.rand(20000, 3)
+agents = np.array(agents, dtype=np.float32)
+matrix = np.zeros(shape=(1024, 1024), dtype=np.float32)
+
+matrix_driver = drv.InOut(agents)
+agents_driver = drv.InOut(agents)
+
+t = time.time()
+for i in range(1000):
+    update(agents_driver, grid=(200, 1), block=(100, 1, 1))
+
+print(time.time() - t)
