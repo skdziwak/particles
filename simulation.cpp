@@ -10,10 +10,16 @@ extern "C" {
         float a;
     };
 
-    __global__ void update(Agent *ptr) {
+    __global__ void update(Agent *ptr, float matrix[1024][1024]) {
         const int i = threadIdx.x + blockIdx.x * blockDim.x;
         ptr[i].x += cos(ptr[i].a * 2 * PI) * SPEED;
         ptr[i].y += sin(ptr[i].a * 2 * PI) * SPEED;
+        const int x = ptr[i].x * 1024;
+        const int y = ptr[i].y * 1024;
+
+        if (x >= 0 && x < 1024 && y >= 0 && y < 1024/) {
+            matrix[y][x] = 1.0;
+        }
     }
 
     __global__ void filter2D(float *input, int *shape, float *filter, float *output) {

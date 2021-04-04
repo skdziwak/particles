@@ -46,5 +46,7 @@ agents_driver = drv.InOut(agents)
 t = time.time()
 for i in range(1000):
     update(agents_driver, grid=(200, 1), block=(100, 1, 1))
+    plt.imshow(matrix)
+    plt.show()
 
 print(time.time() - t)
