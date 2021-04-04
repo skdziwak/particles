@@ -1,24 +1,65 @@
 #include "matrix_utils.h"
-#define SPEED 0.05
 #define PI 3.141592654f
 
 extern "C" {
 
+    __device__ int hash(int key) {
+        int hash = 0;
+        int b0 = (key & 255);
+        int b1 = (key & 65280) >> 8;
+        int b2 = (key & 16711680) >> 16;
+        int b3 = (key & -16777216) >> 24;
+        hash += b0;
+        hash += (hash << 10);
+        hash = hash ^ (hash >> 6);
+        hash += b1;
+        hash += (hash << 10);
+        hash = hash ^ (hash >> 6);
+        hash += b2;
+        hash += (hash << 10);
+        hash = hash ^ (hash >> 6);
+        hash += b3;
+        hash += (hash << 10);
+        hash = hash ^ (hash >> 6);
+        hash += (hash << 3);
+        hash = hash ^ (hash >> 11);
+        hash += (hash << 15);
+        return hash;
+    }
+
+
     struct Agent {
         float x;
         float y;
-        float a;
+        float angle;
     };
 
-    __global__ void update(Agent *ptr, float matrix[1024][1024]) {
-        const int i = threadIdx.x + blockIdx.x * blockDim.x;
-        ptr[i].x += cos(ptr[i].a * 2 * PI) * SPEED;
-        ptr[i].y += sin(ptr[i].a * 2 * PI) * SPEED;
-        const int x = ptr[i].x * 1024;
-        const int y = ptr[i].y * 1024;
+    struct Params {
+        float speed;
+        float width;
+        float height;
+    };
 
-        if (x >= 0 && x < 1024 && y >= 0 && y < 1024/) {
-            matrix[y][x] = 1.0;
+    __global__ void update(Agent *agents, float *matrix, Params *params) {
+        const int i = threadIdx.x + blockIdx.x * blockDim.x;
+        const int w = params->width, h = params->height;
+        Agent *a = agents + i;
+
+        // Move the agent
+        a->x += cos(2 * PI * a->angle) * params->speed;
+        a->y += sin(2 * PI * a->angle) * params->speed;
+
+        // Check if the agent is over the border
+        if(a->x >= 1) a->x -= 1.0;
+        if(a->y >= 1) a->y -= 1.0;
+        if(a->x < 0) a->x += 1.0;
+        if(a->y < 0) a->y += 1.0;
+
+        // Draw the agent
+        const int x = a->x * w;
+        const int y = a->y * h;
+        if (x >= 0 && x < w && y >= 0 && y < h) {
+            matrix[x * h + y] = 1;
         }
     }
 

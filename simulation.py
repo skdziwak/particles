@@ -1,18 +1,19 @@
 # Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='GPU Slime Simulation')
-parser.add_argument('-gs', '--grid-size', dest='GRID_SIZE', action='store', type=int, default=32)
-parser.add_argument('-bs', '--block-size', dest='BLOCK_SIZE', action='store', type=int, default=32)
+parser.add_argument('--width', dest='WIDTH', action='store', type=int, default=1024)
+parser.add_argument('--height', dest='HEIGHT', action='store', type=int, default=1024)
+parser.add_argument('-b', '--blocks', dest='BLOCKS', action='store', type=int, default=20)
+parser.add_argument('-bs', '--block-size', dest='BLOCK_SIZE', action='store', type=int, default=128)
+parser.add_argument('-s', '--speed', dest='SPEED', action='store', type=float, default=0.005)
+parser.add_argument('-d', '--decay', dest='DECAY', action='store', type=float, default=0.97)
 args = parser.parse_args()
 
-# Set constants
-GRID = (args.GRID_SIZE, args.GRID_SIZE)
-BLOCK = (args.BLOCK_SIZE, args.BLOCK_SIZE, 1)
-SIZE = args.GRID_SIZE * args.BLOCK_SIZE
 
 # Imports
 import os
 import time
+import shutil
 import numpy as np
 import pycuda.autoinit
 import pycuda.driver as drv
@@ -20,6 +21,10 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from pycuda.compiler import SourceModule
 from pathlib import Path
+
+if os.path.exists('tmp'):
+    shutil.rmtree('tmp')
+os.mkdir('tmp')
 
 # Compile CUDA Kernels
 module = SourceModule(Path('simulation.cpp').read_text(), include_dirs=[os.path.join(os.getcwd(), 'include')], no_extern_c=True)
@@ -36,17 +41,26 @@ def create_blur(shape):
             fltr[x,y] = (a - x) ** 2 + (b - y) ** 2
     return np.sqrt(fltr)
 
-agents = np.random.rand(20000, 3)
+blur = create_blur((3, 3))
+
+agents = np.random.rand(args.BLOCKS * args.BLOCK_SIZE, 3)
 agents = np.array(agents, dtype=np.float32)
-matrix = np.zeros(shape=(1024, 1024), dtype=np.float32)
+matrix = np.zeros(shape=(args.HEIGHT, args.WIDTH), dtype=np.float32)
+matrix2 = np.zeros_like(matrix, dtype=np.float32)
+params = np.array([args.SPEED, args.WIDTH, args.HEIGHT], dtype=np.float32)
 
-matrix_driver = drv.InOut(agents)
-agents_driver = drv.InOut(agents)
+cmap = plt.get_cmap('magma')
 
-t = time.time()
-for i in range(1000):
-    update(agents_driver, grid=(200, 1), block=(100, 1, 1))
-    plt.imshow(matrix)
-    plt.show()
+for i in range(5000):
+    print(i)
+    matrix *= args.DECAY
+    
+    update(drv.InOut(agents), drv.InOut(matrix), drv.In(params), grid=(args.BLOCKS, 1), block=(args.BLOCK_SIZE, 1, 1))
+    filter2D(drv.In(matrix), drv.In(np.array(blur.shape, dtype=np.int32)), drv.In(blur), drv.Out(matrix2), grid=(32, 32), block=(32, 32, 1))
+    np.copyto(matrix, matrix2)
 
-print(time.time() - t)
+    if i > 100: 
+        img = cmap(matrix)
+        img *= 255
+        img = Image.fromarray(img.astype('uint8'), 'RGBA')
+        img.save('tmp/f{}.png'.format(i))
