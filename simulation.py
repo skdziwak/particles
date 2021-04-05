@@ -2,6 +2,7 @@
 import argparse
 parser = argparse.ArgumentParser(description='GPU Slime Simulation')
 parser.add_argument('FRAMES', type=int)
+parser.add_argument('OUTPUT', type=str)
 parser.add_argument('-f', '--fps', dest='FPS', action='store', type=int, default=25)
 parser.add_argument('-g', '--grid-size', dest='GRID', action='store', type=int, default=32)
 parser.add_argument('-b', '--blocks', dest='BLOCKS', action='store', type=int, default=20)
@@ -11,6 +12,7 @@ parser.add_argument('-d', '--decay', dest='DECAY', action='store', type=float, d
 parser.add_argument('-t', '--turn-speed', dest='TURN_SPEED', action='store', type=float, default=0.21)
 parser.add_argument('-sa', '--sensor-angle', dest='SENSOR_ANGLE', action='store', type=float, default=45)
 parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='store', type=float, default=0.05)
+parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, default='H264')
 
 args = parser.parse_args()
 
@@ -67,7 +69,7 @@ params = np.array([args.SPEED, args.GRID * 32, args.GRID * 32, args.TURN_SPEED, 
 
 cmap = plt.get_cmap('magma')
 
-out = cv2.VideoWriter('result.mp4', cv2.VideoWriter_fourcc(*'H264'), args.FRAMES, (args.GRID * 32, args.GRID * 32), False)
+out = cv2.VideoWriter(args.OUTPUT, cv2.VideoWriter_fourcc(*args.CODEC), args.FRAMES, (args.GRID * 32, args.GRID * 32), False)
 
 try:
     for i in range(args.FRAMES):
