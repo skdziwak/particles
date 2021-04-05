@@ -16,6 +16,7 @@ parser.add_argument('-t', '--turn-speed', dest='TURN_SPEED', action='store', typ
 parser.add_argument('-sa', '--sensor-angle', dest='SENSOR_ANGLE', action='store', type=float, default=30)
 parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='store', type=float, default=0.03)
 parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, default='H264')
+parser.add_argument('-cm', '--colormap', dest='CM', action='store', type=str, default=None)
 
 args = parser.parse_args()
 
@@ -85,8 +86,13 @@ MATRIX_BLOCK = (args.BLOCK, args.BLOCK, 1)
 
 out = cv2.VideoWriter(args.OUTPUT,cv2.VideoWriter_fourcc(*args.CODEC), args.FPS, (args.GRID * args.BLOCK, args.GRID * args.BLOCK))
 
-UPS = args.FPS * args.UPF
+if args.CM:
+    cmap = plt.get_cmap('magma')
+else:
+    cmap = None
 
+UPS = args.FPS * args.UPF
+t = time.time()
 for i in range(args.SECONDS * args.FPS * args.UPF):
     if i % UPS == 0:
         sys.stdout.write('\r{}/{} '.format(i // UPS + 1, args.SECONDS))
@@ -97,8 +103,14 @@ for i in range(args.SECONDS * args.FPS * args.UPF):
     if i % args.UPF == 0: 
         filter2D(matrix_gpu, blur_shape_gpu, blur_gpu, matrix2_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
         cuda.memcpy_dtoh(matrix, matrix2_gpu)
-        img = (matrix * 255).astype(np.uint8)
-        img = np.repeat(img[:,:,np.newaxis], 3, axis=2)
+        if cmap:
+            img = (cmap(matrix) * 255).astype(np.uint8)
+            img = img[...,:3]
+            img = img[...,::-1]
+        else:
+            img = (matrix * 255).astype(np.uint8)
+            img = np.repeat(img[:,:,np.newaxis], 3, axis=2)
         out.write(img)
-
 out.release()
+
+print('\nFinished in {:.2f} s'.format(time.time() - t))
