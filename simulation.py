@@ -91,12 +91,16 @@ if args.CM:
 else:
     cmap = None
 
+def progress_bar(f, width):
+    s = '[{}>{}]'.format('=' * int(f * width), ' ' * int((1-f) * width))
+    sys.stdout.write('\r' + s + ' {:.2f}%'.format(f * 100))
+    sys.stdout.flush()
+
+TIMEFRAMES = args.SECONDS * args.FPS * args.UPF
 UPS = args.FPS * args.UPF
 t = time.time()
+
 for i in range(args.SECONDS * args.FPS * args.UPF):
-    if i % UPS == 0:
-        sys.stdout.write('\r{}/{} '.format(i // UPS + 1, args.SECONDS))
-        sys.stdout.flush()
     update(agents_gpu, matrix_gpu, params_gpu, grid=(args.AGENT_BLOCKS, 1), block=(args.AGENT_BLOCK_SIZE, 1, 1))
     decay(matrix_gpu, params_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
 
@@ -104,13 +108,16 @@ for i in range(args.SECONDS * args.FPS * args.UPF):
         filter2D(matrix_gpu, blur_shape_gpu, blur_gpu, matrix2_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
         cuda.memcpy_dtoh(matrix, matrix2_gpu)
         if cmap:
-            img = (cmap(matrix) * 255).astype(np.uint8)
+            img = (cmap(matrix, ) * 255).astype(np.uint8)
             img = img[...,:3]
             img = img[...,::-1]
         else:
             img = (matrix * 255).astype(np.uint8)
             img = np.repeat(img[:,:,np.newaxis], 3, axis=2)
         out.write(img)
+        progress = float(i) / TIMEFRAMES
+        progress_bar(progress, 100)
 out.release()
+progress_bar(1, 100)
 
 print('\nFinished in {:.2f} s'.format(time.time() - t))
