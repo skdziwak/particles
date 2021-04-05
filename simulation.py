@@ -1,6 +1,8 @@
 # Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='GPU Slime Simulation')
+parser.add_argument('FRAMES', type=int)
+parser.add_argument('-f', '--fps', dest='FPS', action='store', type=int, default=25)
 parser.add_argument('-g', '--grid-size', dest='GRID', action='store', type=int, default=32)
 parser.add_argument('-b', '--blocks', dest='BLOCKS', action='store', type=int, default=20)
 parser.add_argument('-bs', '--block-size', dest='BLOCK_SIZE', action='store', type=int, default=128)
@@ -15,7 +17,7 @@ args = parser.parse_args()
 PREVIEW = False
 
 # Imports
-import os
+import os, sys
 import time
 import shutil
 import numpy as np
@@ -65,12 +67,14 @@ params = np.array([args.SPEED, args.GRID * 32, args.GRID * 32, args.TURN_SPEED, 
 
 cmap = plt.get_cmap('magma')
 
-out = cv2.VideoWriter('result.mp4', cv2.VideoWriter_fourcc(*'H264'), 25, (args.GRID * 32, args.GRID * 32), False)
+out = cv2.VideoWriter('result.mp4', cv2.VideoWriter_fourcc(*'H264'), args.FRAMES, (args.GRID * 32, args.GRID * 32), False)
 
 try:
-    for i in range(25 * 30):
-        if i % 25 == 0:
-            print(i // 25)
+    for i in range(args.FRAMES):
+        sys.stdout.write("\033[F")
+        sys.stdout.write("\033[K")
+        progress = int(float(i+1) / args.FRAMES * 100)
+        print('Rendering {}/{} [{}>{}]'.format(i+1, args.FRAMES, '=' * progress, ' ' * (100 - progress)))
         matrix = matrix - args.DECAY
         matrix *= matrix > 0
         
