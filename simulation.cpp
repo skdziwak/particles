@@ -49,6 +49,11 @@ extern "C" {
         const int w = params->width, h = params->height;
         x += cos(2 * PI * angle) * params->sensorLength;
         y += sin(2 * PI * angle) * params->sensorLength;
+        if(x >= 1) x -= 1.0;
+        if(y >= 1) y -= 1.0;
+        if(x < 0) x += 1.0;
+        if(y < 0) y += 1.0;
+        
         const int a = x * w;
         const int b = y * h;
         if (a >= 0 && a < w && b >= 0 && b < h) {

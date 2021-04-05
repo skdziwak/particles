@@ -87,7 +87,7 @@ MATRIX_BLOCK = (args.BLOCK, args.BLOCK, 1)
 out = cv2.VideoWriter(args.OUTPUT,cv2.VideoWriter_fourcc(*args.CODEC), args.FPS, (args.GRID * args.BLOCK, args.GRID * args.BLOCK))
 
 if args.CM:
-    cmap = plt.get_cmap('magma')
+    cmap = plt.get_cmap(args.CM)
 else:
     cmap = None
 
