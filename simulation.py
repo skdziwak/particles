@@ -1,17 +1,20 @@
 # Parse arguments
 import argparse
 parser = argparse.ArgumentParser(description='GPU Slime Simulation')
-parser.add_argument('FRAMES', type=int)
+parser.add_argument('SECONDS', type=int)
 parser.add_argument('OUTPUT', type=str)
 parser.add_argument('-f', '--fps', dest='FPS', action='store', type=int, default=25)
+parser.add_argument('-u', '--upf', dest='UPF', action='store', type=int, default=300)
 parser.add_argument('-g', '--grid-size', dest='GRID', action='store', type=int, default=32)
-parser.add_argument('-b', '--blocks', dest='BLOCKS', action='store', type=int, default=20)
-parser.add_argument('-bs', '--block-size', dest='BLOCK_SIZE', action='store', type=int, default=128)
-parser.add_argument('-s', '--speed', dest='SPEED', action='store', type=float, default=0.005)
-parser.add_argument('-d', '--decay', dest='DECAY', action='store', type=float, default=0.03)
+parser.add_argument('-b', '--block-size', dest='BLOCK', action='store', type=int, default=32)
+parser.add_argument('-ab', '--agent-blocks', dest='AGENT_BLOCKS', action='store', type=int, default=100)
+parser.add_argument('-abs', '--agent-block-size', dest='AGENT_BLOCK_SIZE', action='store', type=int, default=1024)
+parser.add_argument('-s', '--speed', dest='SPEED', action='store', type=float, default=0.0002)
+parser.add_argument('-d', '--decay', dest='DECAY', action='store', type=float, default=0.002)
+parser.add_argument('-bl', '--blur-size', dest='BLUR', action='store', type=int, default=7)
 parser.add_argument('-t', '--turn-speed', dest='TURN_SPEED', action='store', type=float, default=0.21)
-parser.add_argument('-sa', '--sensor-angle', dest='SENSOR_ANGLE', action='store', type=float, default=45)
-parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='store', type=float, default=0.05)
+parser.add_argument('-sa', '--sensor-angle', dest='SENSOR_ANGLE', action='store', type=float, default=30)
+parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='store', type=float, default=0.03)
 parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, default='H264')
 
 args = parser.parse_args()
@@ -31,15 +34,6 @@ from PIL import Image, ImageTk
 from pycuda.compiler import SourceModule
 from pathlib import Path
 import cv2
-import tkinter
-from scipy.signal import gaussian
-
-if PREVIEW:
-    window = tkinter.Tk()
-    window.geometry('{}x{}+10+20'.format(args.GRID * 32, args.GRID * 32))
-    canvas = tkinter.Canvas(window, bg="white", height=args.GRID * 32, width=args.GRID * 32)
-    canvas.pack()
-
 
 if os.path.exists('tmp'):
     shutil.rmtree('tmp')
@@ -62,18 +56,13 @@ def create_blur(a):
     fltr *= fltr > 0
     return fltr / np.sum(fltr)
 
-blur = create_blur(7)
-plt.imshow(blur)
-plt.show()
+blur = create_blur(args.BLUR)
 blur_shape = np.array(blur.shape, dtype=np.int32)
 
-agents = np.random.rand(args.BLOCKS * args.BLOCK_SIZE, 4)
-for i in range(agents.shape[0]):
-    agents[i,0] = random.random() / 4 - 0.5
-    agents[i,1] = random.random() / 4 - 0.5
+agents = np.random.rand(args.AGENT_BLOCKS * args.AGENT_BLOCK_SIZE, 4)
 agents = np.array(agents, dtype=np.float32)
-matrix = np.zeros(shape=(args.GRID * 32, args.GRID * 32), dtype=np.float32)
-params = np.array([args.SPEED, args.GRID * 32, args.GRID * 32, args.TURN_SPEED, args.SENSOR_ANGLE, args.SENSOR_LENGTH], dtype=np.float32)
+matrix = np.zeros(shape=(args.GRID * args.BLOCK, args.GRID * args.BLOCK), dtype=np.float32)
+params = np.array([args.SPEED, args.GRID * args.BLOCK, args.GRID * args.BLOCK, args.TURN_SPEED, args.SENSOR_ANGLE, args.SENSOR_LENGTH, args.DECAY], dtype=np.float32)
 
 # Alloc memory on GPU
 agents_gpu = cuda.mem_alloc_like(agents)
@@ -91,29 +80,25 @@ cuda.memcpy_htod(params_gpu, params)
 cuda.memcpy_htod(blur_gpu, blur)
 cuda.memcpy_htod(blur_shape_gpu, blur_shape)
 
-BLUR_GRID = (args.GRID, args.GRID)
-BLUR_BLOCK = (32, 32, 1)
+MATRIX_GRID = (args.GRID, args.GRID)
+MATRIX_BLOCK = (args.BLOCK, args.BLOCK, 1)
 
-out = cv2.VideoWriter(args.OUTPUT,cv2.VideoWriter_fourcc(*args.CODEC), args.FPS, (args.GRID * 32, args.GRID * 32))
+out = cv2.VideoWriter(args.OUTPUT,cv2.VideoWriter_fourcc(*args.CODEC), args.FPS, (args.GRID * args.BLOCK, args.GRID * args.BLOCK))
 
-t = time.time()
-for i in range(args.FRAMES):
-    if i % 100 == 0:
-        sys.stdout.write('\r{}/{} '.format(i, args.FRAMES))
+UPS = args.FPS * args.UPF
+
+for i in range(args.SECONDS * args.FPS * args.UPF):
+    if i % UPS == 0:
+        sys.stdout.write('\r{}/{} '.format(i // UPS + 1, args.SECONDS))
         sys.stdout.flush()
-    update(agents_gpu, matrix_gpu, params_gpu, grid=(args.BLOCKS, 1), block=(args.BLOCK_SIZE, 1, 1))
-    decay(matrix_gpu, grid=BLUR_GRID, block=BLUR_BLOCK)
-    #blur(matrix_gpu, matrix2_gpu, grid=BLUR_GRID, block=BLUR_BLOCK)
-    #cuda.memcpy_dtod(matrix_gpu, matrix2_gpu, matrix.nbytes)
+    update(agents_gpu, matrix_gpu, params_gpu, grid=(args.AGENT_BLOCKS, 1), block=(args.AGENT_BLOCK_SIZE, 1, 1))
+    decay(matrix_gpu, params_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
 
-    if i % 10 == 0: 
-        filter2D(matrix_gpu, blur_shape_gpu, blur_gpu, matrix2_gpu, grid=BLUR_GRID, block=BLUR_BLOCK)
+    if i % args.UPF == 0: 
+        filter2D(matrix_gpu, blur_shape_gpu, blur_gpu, matrix2_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
         cuda.memcpy_dtoh(matrix, matrix2_gpu)
-        matrix /= np.max(matrix)
         img = (matrix * 255).astype(np.uint8)
         img = np.repeat(img[:,:,np.newaxis], 3, axis=2)
         out.write(img)
-    
-print(time.time() - t)
 
 out.release()

@@ -1,6 +1,5 @@
 #include "matrix_utils.h"
 #define PI 3.141592654f
-#define SENSOR 0.785398163f
 
 extern "C" {
 
@@ -43,6 +42,7 @@ extern "C" {
         float turnSpeed;
         float sensorAngle;
         float sensorLength;
+        float decay;
     };
 
     __device__ float sense(float x, float y, float angle, Params *params, float *matrix) {
@@ -66,9 +66,9 @@ extern "C" {
         float rnd = (a->random % 10000) / 10000.0;
 
         //Sense
-        float left = sense(a->x, a->y, a->angle + params->sensorAngle, params, matrix);
+        float left = sense(a->x, a->y, a->angle + params->sensorAngle / 360.0, params, matrix);
         float forward = sense(a->x, a->y, a->angle, params, matrix);
-        float right = sense(a->x, a->y, a->angle - params->sensorAngle, params, matrix);
+        float right = sense(a->x, a->y, a->angle - params->sensorAngle / 360.0, params, matrix);
         if (forward > left && forward > right) {
 
         } else if(forward < left && forward < right) {
@@ -98,11 +98,11 @@ extern "C" {
         }
     }
 
-    __global__ void decay(float *matrix) {
+    __global__ void decay(float *matrix, Params *params) {
         const int x = getX();
         const int y = getY();
         const int i = getIndex2D(x, y);
-        matrix[i] -= 0.002;
+        matrix[i] -= params->decay;
         if (matrix[i] < 0) matrix[i] = 0;
     }
 
@@ -128,17 +128,6 @@ extern "C" {
             }
         }
         output[i] = value;
-    }
-    
-    #define BR 0.8
-    __global__ void blur(float *input, float *output) {
-        const int x = getX();
-        const int y = getY();
-        const int i = getIndex2D(x, y);
-        float a = input[i];
-        float b = (getFloat2D(input, x+1, y) + getFloat2D(input, x-1, y) + getFloat2D(input, x, y+1) + getFloat2D(input, x, y-1)) / 4.0f; 
-        float c = a * BR + b * (1 - BR);
-        output[i] = c;
     }
     
 }
