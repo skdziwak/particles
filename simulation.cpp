@@ -1,5 +1,6 @@
 #include "matrix_utils.h"
 #define PI 3.141592654f
+#define SENSOR 0.785398163f
 
 extern "C" {
 
@@ -32,18 +33,52 @@ extern "C" {
         float x;
         float y;
         float angle;
+        unsigned int random;
     };
 
     struct Params {
         float speed;
         float width;
         float height;
+        float turnSpeed;
+        float sensorAngle;
+        float sensorLength;
     };
+
+    __device__ float sense(float x, float y, float angle, Params *params, float *matrix) {
+        const int w = params->width, h = params->height;
+        x += cos(2 * PI * angle) * params->sensorLength;
+        y += sin(2 * PI * angle) * params->sensorLength;
+        const int a = x * w;
+        const int b = y * h;
+        if (a >= 0 && a < w && b >= 0 && b < h) {
+            return matrix[a * h + b];
+        }
+        return 0;
+    }
 
     __global__ void update(Agent *agents, float *matrix, Params *params) {
         const int i = threadIdx.x + blockIdx.x * blockDim.x;
         const int w = params->width, h = params->height;
         Agent *a = agents + i;
+
+        a->random = hash(a->random);
+        float rnd = (a->random % 10000) / 10000.0;
+
+        //Sense
+        float left = sense(a->x, a->y, a->angle + params->sensorAngle, params, matrix);
+        float forward = sense(a->x, a->y, a->angle, params, matrix);
+        float right = sense(a->x, a->y, a->angle - params->sensorAngle, params, matrix);
+        if (forward > left && forward > right) {
+
+        } else if(forward < left && forward < right) {
+            a->angle += (rnd - 0.5) * params->turnSpeed;
+        } else if (right > left) {
+            a->angle -= rnd * 0.2 * params->turnSpeed;
+        } else if (left > right) {
+            a->angle += rnd * 0.2 * params->turnSpeed;
+
+        }
 
         // Move the agent
         a->x += cos(2 * PI * a->angle) * params->speed;
