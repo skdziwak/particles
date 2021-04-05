@@ -98,6 +98,14 @@ extern "C" {
         }
     }
 
+    __global__ void decay(float *matrix) {
+        const int x = getX();
+        const int y = getY();
+        const int i = getIndex2D(x, y);
+        matrix[i] -= 0.002;
+        if (matrix[i] < 0) matrix[i] = 0;
+    }
+
     __global__ void filter2D(float *input, int *shape, float *filter, float *output) {
         const int x = getX();
         const int y = getY();
@@ -110,18 +118,27 @@ extern "C" {
         const int h = getHeight();
         const int i = getIndex2D(x, y);
 
-        int c = 0;
         float value = 0.0;
         for(int a = 0 ; a < fw ; a++) {
             for(int b = 0 ; b < fh ; b++) {
                 int j = getIndex2D(x - ox + a, y - oy + b);
                 if(j != -1) {
                     value += input[j] * filter[a + b * fw];
-                    c++;
                 }   
             }
         }
-        output[i] = value / c;
+        output[i] = value;
+    }
+    
+    #define BR 0.8
+    __global__ void blur(float *input, float *output) {
+        const int x = getX();
+        const int y = getY();
+        const int i = getIndex2D(x, y);
+        float a = input[i];
+        float b = (getFloat2D(input, x+1, y) + getFloat2D(input, x-1, y) + getFloat2D(input, x, y+1) + getFloat2D(input, x, y-1)) / 4.0f; 
+        float c = a * BR + b * (1 - BR);
+        output[i] = c;
     }
     
 }

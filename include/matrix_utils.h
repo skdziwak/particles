@@ -15,6 +15,11 @@ extern "C" {
         return x + y * gridDim.x * blockDim.x;
     }
 
+    __device__ int getFloat2D(float* matrix, int x, int y) {
+        if(x < 0 || x >= gridDim.x * blockDim.x || y < 0 || y >= gridDim.y * blockDim.y) return 0;
+        return matrix[x + y * gridDim.x * blockDim.x];
+    }
+
     __device__ int getWidth() {
         return gridDim.x * blockDim.x;
     }
