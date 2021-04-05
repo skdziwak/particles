@@ -71,10 +71,9 @@ out = cv2.VideoWriter('result.mp4', cv2.VideoWriter_fourcc(*'H264'), args.FRAMES
 
 try:
     for i in range(args.FRAMES):
-        sys.stdout.write("\033[F")
-        sys.stdout.write("\033[K")
         progress = int(float(i+1) / args.FRAMES * 100)
-        print('Rendering {}/{} [{}>{}]'.format(i+1, args.FRAMES, '=' * progress, ' ' * (100 - progress)))
+        sys.stdout.write('\rRendering {}/{} [{}>{}]'.format(i+1, args.FRAMES, '=' * progress, ' ' * (100 - progress)))
+        sys.stdout.flush()
         matrix = matrix - args.DECAY
         matrix *= matrix > 0
         
