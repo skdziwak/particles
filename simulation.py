@@ -18,6 +18,7 @@ parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='stor
 parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, default='H264', help='Video codec')
 parser.add_argument('-cm', '--colormap', dest='CM', action='store', type=str, default='magma', help='Matplotlib colormap')
 parser.add_argument('-w', '--wrapping', dest='WRAPPING_BORDERS', action='store_true', help='Wrapping borders')
+parser.add_argument('-r', '--randomize', dest='RANDOMIZE', action='store_true', help='Randomize parameters')
 
 args = parser.parse_args()
 
@@ -36,6 +37,8 @@ from PIL import Image, ImageTk
 from pycuda.compiler import SourceModule
 from pathlib import Path
 import cv2
+from parameters import Params
+from randomize import Randomizer
 
 # Compile CUDA Kernels
 print('Compiling kernels')
@@ -76,23 +79,22 @@ agents = np.random.rand(args.AGENT_BLOCKS * args.AGENT_BLOCK_SIZE, 4)
 agents = np.array(agents, dtype=np.float32)
 matrix = np.zeros(shape=(args.GRID * args.BLOCK, args.GRID * args.BLOCK), dtype=np.float32)
 image = np.zeros(shape=(args.GRID * args.BLOCK, args.GRID * args.BLOCK, 3), dtype=np.uint8)
-params = np.array(
-    [
-        args.SPEED, 
-        args.GRID * args.BLOCK, 
-        args.GRID * args.BLOCK, 
-        args.TURN_SPEED, 
-        args.SENSOR_ANGLE, 
-        args.SENSOR_LENGTH, 
-        args.DECAY,
-        1 if args.WRAPPING_BORDERS else 0
-    ], dtype=np.float32)
+params = Params(
+        speed=args.SPEED, 
+        width=args.GRID * args.BLOCK, 
+        height=args.GRID * args.BLOCK, 
+        turn_speed=args.TURN_SPEED, 
+        sensor_angle=args.SENSOR_ANGLE, 
+        sensor_length=args.SENSOR_LENGTH, 
+        decay=args.DECAY,
+        wrapping_borders=1 if args.WRAPPING_BORDERS else 0
+    )
 
 # Alloc memory in VRAM
 agents_gpu = cuda.mem_alloc_like(agents)
 matrix_gpu = cuda.mem_alloc_like(matrix)
 matrix2_gpu = cuda.mem_alloc_like(matrix)
-params_gpu = cuda.mem_alloc_like(params)
+params_gpu = cuda.mem_alloc_like(params._data)
 blur_shape_gpu = cuda.mem_alloc_like(blur_shape)
 blur_gpu = cuda.mem_alloc_like(blur)
 cmap_gpu = cuda.mem_alloc_like(cmap)
@@ -101,7 +103,6 @@ image_gpu = cuda.mem_alloc_like(image)
 # Copy initial values
 cuda.memcpy_htod(agents_gpu, agents)
 cuda.memcpy_htod(matrix_gpu, matrix)
-cuda.memcpy_htod(params_gpu, params)
 cuda.memcpy_htod(blur_gpu, blur)
 cuda.memcpy_htod(blur_shape_gpu, blur_shape)
 cuda.memcpy_htod(cmap_gpu, cmap)
@@ -120,11 +121,18 @@ def progress_bar(f, width):
 TIMEFRAMES = args.SECONDS * args.FPS * args.UPF
 UPS = args.FPS * args.UPF
 
+if args.RANDOMIZE:
+    print('Generating noise')
+    randomizer = Randomizer(TIMEFRAMES)
+
 print('Rendering')
 
 t = time.time()
 
 for i in range(args.SECONDS * args.FPS * args.UPF):
+    if args.RANDOMIZE:
+        randomizer.update(params, i)
+        cuda.memcpy_htod(params_gpu, params._data)
     progress = float(i) / TIMEFRAMES
 
     update(agents_gpu, matrix_gpu, params_gpu, grid=(args.AGENT_BLOCKS, 1), block=(args.AGENT_BLOCK_SIZE, 1, 1))
