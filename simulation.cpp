@@ -1,6 +1,6 @@
 #include "matrix_utils.h"
 #define PI 3.141592654f
-#define COLORMAP_LENGTH 1024
+#define COLORMAP_LENGTH 16384
 
 extern "C" {
 
@@ -44,6 +44,7 @@ extern "C" {
         float sensorAngle;
         float sensorLength;
         float decay;
+        float wrapping_borders;
     };
 
     struct Pixel {
@@ -54,10 +55,12 @@ extern "C" {
         const int w = params->width, h = params->height;
         x += cos(2 * PI * angle) * params->sensorLength;
         y += sin(2 * PI * angle) * params->sensorLength;
-        if(x >= 1) x -= 1.0;
-        if(y >= 1) y -= 1.0;
-        if(x < 0) x += 1.0;
-        if(y < 0) y += 1.0;
+        if (params->wrapping_borders > 0) {
+            if(x >= 1) x -= 1.0;
+            if(y >= 1) y -= 1.0;
+            if(x < 0) x += 1.0;
+            if(y < 0) y += 1.0;
+        }
         
         const int a = x * w;
         const int b = y * h;
