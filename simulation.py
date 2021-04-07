@@ -19,6 +19,7 @@ parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, def
 parser.add_argument('-cm', '--colormap', dest='CM', action='store', type=str, default='magma', help='Matplotlib colormap')
 parser.add_argument('-w', '--wrapping', dest='WRAPPING_BORDERS', action='store_true', help='Wrapping borders')
 parser.add_argument('-r', '--randomize', dest='RANDOMIZE', action='store_true', help='Randomize parameters')
+parser.add_argument('-ru', '--random-updates', dest='RANDOM_UPDATES', action='store', type=int, default=1)
 
 args = parser.parse_args()
 
@@ -123,16 +124,17 @@ UPS = args.FPS * args.UPF
 
 if args.RANDOMIZE:
     print('Generating noise')
-    randomizer = Randomizer(TIMEFRAMES)
+    randomizer = Randomizer(TIMEFRAMES // args.RANDOM_UPDATES + 1)
 
 print('Rendering')
 
 t = time.time()
-
+j = 0
 for i in range(args.SECONDS * args.FPS * args.UPF):
-    if args.RANDOMIZE:
-        randomizer.update(params, i)
+    if args.RANDOMIZE and i % args.RANDOM_UPDATES == 0:
+        randomizer.update(params, j)
         cuda.memcpy_htod(params_gpu, params._data)
+        j += 1
     progress = float(i) / TIMEFRAMES
 
     update(agents_gpu, matrix_gpu, params_gpu, grid=(args.AGENT_BLOCKS, 1), block=(args.AGENT_BLOCK_SIZE, 1, 1))

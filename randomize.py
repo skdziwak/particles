@@ -4,8 +4,8 @@ from parameters import Params
 from matplotlib import pyplot as plt
 from perlin_noise import PerlinNoise
 
-def generate_noise(length):
-    noises = [PerlinNoise(octaves=a) for a in (3, 6, 12, 24)]
+def generate_noise(length, octaves=(6, 12, 24, 48)):
+    noises = [PerlinNoise(octaves=a) for a in octaves]
     result = np.zeros((length,))
     for i in range(length):
         result[i] = sum(n(i / length) for n in noises)
@@ -14,7 +14,7 @@ def generate_noise(length):
     return result
 
 class Randomizer: # Randomizes speed, turn_speed, sensor_angle, sensor_length, decay
-    def __init__(self, length, averages=[0.001, 1, 45, 0.05, 0.01], deviations=[0, 0.9, 40, 0.008, 0.0005]):
+    def __init__(self, length, averages=[0.001, 1, 45, 0.05, 0.01], deviations=[0.0005, 0.9, 40, 0.045, 0.009]):
         self.noises = [generate_noise(length) for i in range(5)]
         self.averages = averages
         self.deviations = deviations
