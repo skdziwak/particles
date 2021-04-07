@@ -17,7 +17,7 @@ parser.add_argument('-sa', '--sensor-angle', dest='SENSOR_ANGLE', action='store'
 parser.add_argument('-sl', '--sensor-length', dest='SENSOR_LENGTH', action='store', type=float, default=0.03, help='Agent\'s length of sensor')
 parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, default='H264', help='Video codec')
 parser.add_argument('-cm', '--colormap', dest='CM', action='store', type=str, default='magma', help='Matplotlib colormap')
-parser.add_argument('-w' '--wrapping', dest='WRAPPING_BORDERS', action='store_true', help='Wrapping borders')
+parser.add_argument('-w', '--wrapping', dest='WRAPPING_BORDERS', action='store_true', help='Wrapping borders')
 
 args = parser.parse_args()
 
