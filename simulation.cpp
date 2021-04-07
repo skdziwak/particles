@@ -1,5 +1,6 @@
 #include "matrix_utils.h"
 #define PI 3.141592654f
+#define COLORMAP_LENGTH 1024
 
 extern "C" {
 
@@ -43,6 +44,10 @@ extern "C" {
         float sensorAngle;
         float sensorLength;
         float decay;
+    };
+
+    struct Pixel {
+        unsigned char green, blue, red;
     };
 
     __device__ float sense(float x, float y, float angle, Params *params, float *matrix) {
@@ -133,6 +138,14 @@ extern "C" {
             }
         }
         output[i] = value;
+    }
+
+    __global__ void apply_colormap(float *matrix, Pixel *colormap, Pixel *output) {
+        const int x = getX();
+        const int y = getY();
+        const int i = getIndex2D(x, y);
+        const int value = int(matrix[i] * (COLORMAP_LENGTH - 1));
+        output[i] = colormap[value];
     }
     
 }

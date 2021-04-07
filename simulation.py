@@ -4,7 +4,7 @@ parser = argparse.ArgumentParser(description='GPU Slime Simulation', formatter_c
 parser.add_argument('SECONDS', type=int)
 parser.add_argument('OUTPUT', type=str)
 parser.add_argument('-f', '--fps', dest='FPS', action='store', type=int, default=25, help='Frames per second')
-parser.add_argument('-u', '--upf', dest='UPF', action='store', type=int, default=300, help='Updates per frame')
+parser.add_argument('-u', '--upf', dest='UPF', action='store', type=int, default=30, help='Updates per frame')
 parser.add_argument('-g', '--grid-size', dest='GRID', action='store', type=int, default=32, help='Matrix grid size')
 parser.add_argument('-b', '--block-size', dest='BLOCK', action='store', type=int, default=32, help='Matrix block size')
 parser.add_argument('-ab', '--agent-blocks', dest='AGENT_BLOCKS', action='store', type=int, default=100, help='Agents blocks')
@@ -36,15 +36,12 @@ from pycuda.compiler import SourceModule
 from pathlib import Path
 import cv2
 
-if os.path.exists('tmp'):
-    shutil.rmtree('tmp')
-os.mkdir('tmp')
-
 # Compile CUDA Kernels
 module = SourceModule(Path('simulation.cpp').read_text(), include_dirs=[os.path.join(os.getcwd(), 'include')], no_extern_c=True)
 update = module.get_function('update')
 decay = module.get_function('decay')
 filter2D = module.get_function('filter2D')
+apply_colormap = module.get_function('apply_colormap')
 
 # Bluf filter
 def create_blur(a):
@@ -57,43 +54,50 @@ def create_blur(a):
     fltr *= fltr > 0
     return fltr / np.sum(fltr)
 
+# Create colormap
+CMAP_SIZE = 1024
+cmap = np.ndarray(shape=(CMAP_SIZE), dtype=np.float32)
+for i in range(cmap.shape[0]):
+    cmap[i] = i / CMAP_SIZE
+cmap = plt.get_cmap(args.CM)(cmap)[...,[2,1,0]]
+cmap *= 255
+cmap = cmap.astype(np.uint8).flatten()
+
+# Create blur filter
 blur = create_blur(args.BLUR)
 blur_shape = np.array(blur.shape, dtype=np.int32)
 
+# Alloc memory in RAM
 agents = np.random.rand(args.AGENT_BLOCKS * args.AGENT_BLOCK_SIZE, 4)
 agents = np.array(agents, dtype=np.float32)
 matrix = np.zeros(shape=(args.GRID * args.BLOCK, args.GRID * args.BLOCK), dtype=np.float32)
+image = np.zeros(shape=(args.GRID * args.BLOCK, args.GRID * args.BLOCK, 3), dtype=np.uint8)
 params = np.array([args.SPEED, args.GRID * args.BLOCK, args.GRID * args.BLOCK, args.TURN_SPEED, args.SENSOR_ANGLE, args.SENSOR_LENGTH, args.DECAY], dtype=np.float32)
 
-# Alloc memory on GPU
+# Alloc memory in VRAM
 agents_gpu = cuda.mem_alloc_like(agents)
 matrix_gpu = cuda.mem_alloc_like(matrix)
 matrix2_gpu = cuda.mem_alloc_like(matrix)
 params_gpu = cuda.mem_alloc_like(params)
 blur_shape_gpu = cuda.mem_alloc_like(blur_shape)
 blur_gpu = cuda.mem_alloc_like(blur)
+cmap_gpu = cuda.mem_alloc_like(cmap)
+image_gpu = cuda.mem_alloc_like(image)
 
 # Copy initial values
 cuda.memcpy_htod(agents_gpu, agents)
 cuda.memcpy_htod(matrix_gpu, matrix)
-cuda.memcpy_htod(matrix_gpu, matrix)
 cuda.memcpy_htod(params_gpu, params)
 cuda.memcpy_htod(blur_gpu, blur)
 cuda.memcpy_htod(blur_shape_gpu, blur_shape)
+cuda.memcpy_htod(cmap_gpu, cmap)
 
 MATRIX_GRID = (args.GRID, args.GRID)
 MATRIX_BLOCK = (args.BLOCK, args.BLOCK, 1)
 
 out = cv2.VideoWriter(args.OUTPUT,cv2.VideoWriter_fourcc(*args.CODEC), args.FPS, (args.GRID * args.BLOCK, args.GRID * args.BLOCK))
 
-if args.CM:
-    cmap = plt.get_cmap(args.CM)
-else:
-    cmap = None
-
-def animate_params(p):
-    pass
-
+# Print progress bar
 def progress_bar(f, width):
     s = '[{}>{}]'.format('=' * int(f * width), ' ' * int((1-f) * width))
     sys.stdout.write('\r' + s + ' {:.2f}%'.format(f * 100))
@@ -105,23 +109,16 @@ t = time.time()
 
 for i in range(args.SECONDS * args.FPS * args.UPF):
     progress = float(i) / TIMEFRAMES
-    animate_params(progress)
-    cuda.memcpy_htod(params_gpu, params)
 
     update(agents_gpu, matrix_gpu, params_gpu, grid=(args.AGENT_BLOCKS, 1), block=(args.AGENT_BLOCK_SIZE, 1, 1))
     decay(matrix_gpu, params_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
 
     if i % args.UPF == 0: 
         filter2D(matrix_gpu, blur_shape_gpu, blur_gpu, matrix2_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
-        cuda.memcpy_dtoh(matrix, matrix2_gpu)
-        if cmap:
-            img = (cmap(matrix, ) * 255).astype(np.uint8)
-            img = img[...,:3]
-            img = img[...,::-1]
-        else:
-            img = (matrix * 255).astype(np.uint8)
-            img = np.repeat(img[:,:,np.newaxis], 3, axis=2)
-        out.write(img)
+        apply_colormap(matrix2_gpu, cmap_gpu, image_gpu, grid=MATRIX_GRID, block=MATRIX_BLOCK)
+        cuda.memcpy_dtoh(image, image_gpu)
+
+        out.write(image)
         progress_bar(progress, 100)
 out.release()
 progress_bar(1, 100)
