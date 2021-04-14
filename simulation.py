@@ -19,8 +19,8 @@ parser.add_argument('-c', '--codec', dest='CODEC', action='store', type=str, def
 parser.add_argument('-cm', '--colormap', dest='CM', action='store', type=str, default='magma', help='Matplotlib colormap')
 parser.add_argument('-w', '--wrapping', dest='WRAPPING_BORDERS', action='store_true', help='Wrapping borders')
 parser.add_argument('-r', '--randomize', dest='RANDOMIZE', action='store_true', help='Randomize parameters')
-parser.add_argument('-ru', '--random-updates', dest='RANDOM_UPDATES', action='store', type=int, default=30)
-parser.add_argument('-rs', '--random-speed', dest='RANDOM_SPEED', action='store', type=float, default=1)
+parser.add_argument('-ru', '--random-updates', dest='RANDOM_UPDATES', action='store', type=int, default=30, help='Simulaton updates per parameters update')
+parser.add_argument('-rs', '--random-speed', dest='RANDOM_SPEED', action='store', type=float, default=1, help='Random changes speed')
 
 args = parser.parse_args()
 
